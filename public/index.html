@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FMCSA & MOTUS Carrier Scraper Intelligence</title>
+  <meta name="description" content="High-performance USDOT / FMCSA carrier lookup engine and batch scraper with real-time analytics and live MOTUS API integration.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- TOP NAVIGATION BAR -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="1" y="3" width="15" height="13"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+          <span class="pulse-ring"></span>
+        </div>
+        <div class="brand-text">
+          <h1>Carrier<span>Pulse</span></h1>
+          <p class="brand-subtitle">USDOT & FMCSA Intelligence Engine</p>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="badge-status-group">
+          <div id="connStatusBadge" class="status-pill status-online">
+            <span class="status-dot"></span>
+            <span class="status-text">MOTUS API CONNECTED</span>
+          </div>
+          <div id="engineStatusBadge" class="status-pill status-idle">
+            <span class="engine-icon">⚡</span>
+            <span id="engineStatusText">ENGINE IDLE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="quickTestNavBtn" class="btn btn-outline btn-sm">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span>Live Lookup</span>
+        </button>
+        <button id="exportCsvTopBtn" class="btn btn-secondary btn-sm">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Export CSV</span>
+        </button>
+        <button id="exportJsonTopBtn" class="btn btn-secondary btn-sm">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          <span>JSON</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- REAL-TIME HUD METRICS BAR -->
+    <section class="hud-metrics-row">
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">SAVED CARRIERS</span>
+          <span id="hudTotalCarriers" class="metric-value">0</span>
+        </div>
+        <div class="metric-sparkle"></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">DOTS PROCESSED</span>
+          <span id="hudDoneCount" class="metric-value">0</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">THROUGHPUT</span>
+          <span id="hudSpeed" class="metric-value">0.0 <small>req/s</small></span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon metric-icon-amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        </div>
+        <div class="metric-info">
+          <span class="metric-label">CURRENT ETA</span>
+          <span id="hudEta" class="metric-value">0.0 <small>min</small></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="nav-tabs-wrapper">
+      <div class="tabs-container">
+        <button class="nav-tab active" data-tab="tab-upload-csv">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <span>Upload CSV & Scrape</span>
+          <span class="tab-badge tab-badge-emerald">Lead Scraper</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-inspector">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span>Live Test & Inspector</span>
+          <span class="tab-badge">Real Data</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-scraper">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span>Range Scraper</span>
+          <span id="tabScraperBadge" class="tab-badge tab-badge-pulse" style="display:none;">Running</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-crm">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+          <span>All Saved Carriers</span>
+          <span id="tabCarriersCountBadge" class="tab-badge">0</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-config">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <span>API & Config Studio</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-failed">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <span>Failed & Resumption</span>
+          <span id="tabFailedCountBadge" class="tab-badge tab-badge-amber">0</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- MAIN VIEW AREA -->
+    <main class="main-content">
+
+      <!-- ============================================== -->
+      <!-- TAB 0: UPLOAD CSV & SCRAPE (PRIMARY FEATURE)    -->
+      <!-- ============================================== -->
+      <section id="tab-upload-csv" class="tab-pane active">
+        <div class="panel-header">
+          <div>
+            <h2>Upload CSV & Scrape Carrier Intelligence</h2>
+            <p class="panel-desc">Upload any CSV or TXT lead file. The system will auto-detect the USDOT column, scrape real-time company profiles, and display all extracted data below in real time.</p>
+          </div>
+          <div class="panel-header-tags">
+            <a href="/api/sample-csv" class="btn btn-secondary btn-sm" id="downloadSampleCsvBtn">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Download Sample CSV</span>
+            </a>
+            <button type="button" class="btn btn-ghost btn-sm" id="toggleRawPasteBtn">
+              <span>Paste Text Instead</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Uploader Drop Zone Card -->
+        <div class="card csv-upload-card" id="csvUploadCard">
+          <div class="csv-drop-zone" id="csvDropZone">
+            <div class="drop-zone-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <h3>Drag & Drop Your Leads CSV File Here</h3>
+            <p>Supports <code>.csv</code> and <code>.txt</code> files with USDOT numbers in any column.</p>
+            <div class="drop-zone-actions">
+              <button type="button" class="btn btn-primary" id="browseCsvFileBtn">Browse CSV File</button>
+              <button type="button" class="btn btn-secondary" id="useSampleDataBtn">Use Sample 10 Leads</button>
+            </div>
+            <input type="file" id="mainCsvFileInput" accept=".csv,.txt" style="display:none;">
+          </div>
+
+          <!-- Raw Paste Box (hidden by default) -->
+          <div id="rawPasteBox" style="display:none;margin-top:16px;">
+            <label for="rawPasteTextarea" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Paste Raw CSV / DOT List</label>
+            <textarea id="rawPasteTextarea" class="form-textarea" rows="4" placeholder="USDOT,Company&#10;1000000,James Killingsworth&#10;3000000,Robco&#10;2500000,Carrier Five"></textarea>
+            <div style="margin-top:10px;display:flex;gap:10px;">
+              <button type="button" id="parseRawPasteBtn" class="btn btn-primary btn-sm">Parse Pasted Data</button>
+              <button type="button" id="cancelRawPasteBtn" class="btn btn-ghost btn-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CSV Analysis & Scrape Confirmation Card (shown once file is parsed) -->
+        <div class="card csv-confirm-card" id="csvConfirmCard" style="display:none;margin-top:20px;">
+          <div class="card-header">
+            <div class="card-header-left">
+              <span class="card-header-icon">📋</span>
+              <span class="card-title">Uploaded CSV Analysis & Configuration</span>
+            </div>
+            <div class="card-header-actions">
+              <span class="badge badge-emerald" id="csvRowsBadge">0 Rows</span>
+              <span class="badge badge-cyan" id="csvDotsBadge">0 Valid USDOTs</span>
+            </div>
+          </div>
+
+          <div class="csv-meta-grid">
+            <div class="form-group">
+              <label for="csvDetectedColSelect">Target USDOT Column</label>
+              <select id="csvDetectedColSelect" class="form-select"></select>
+            </div>
+            <div class="form-group">
+              <label for="csvConcurrencyKnob">Worker Concurrency</label>
+              <select id="csvConcurrencyKnob" class="form-select">
+                <option value="4">4 parallel requests (Gentle)</option>
+                <option value="8" selected>8 parallel requests (Fast & Recommended)</option>
+                <option value="16">16 parallel requests (Ultra-Fast)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="csvDelayKnob">Request Delay Jitter</label>
+              <select id="csvDelayKnob" class="form-select">
+                <option value="0" selected>0 ms (Maximum Speed)</option>
+                <option value="100">100 ms (Polite)</option>
+                <option value="300">300 ms (Stealth)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Preview Table of first 5 rows -->
+          <div style="margin: 16px 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-size:0.8rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;">File Preview (First 5 Rows)</span>
+              <span style="font-size:0.75rem;color:var(--cyan);font-family:var(--font-mono);" id="csvFileNameDisplay">leads.csv</span>
+            </div>
+            <div class="table-responsive" style="max-height: 180px;border: 1px solid var(--bg-card-border);border-radius: var(--radius-md);">
+              <table class="crm-table" id="csvPreviewTable">
+                <thead id="csvPreviewThead"></thead>
+                <tbody id="csvPreviewTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Start Action Bar -->
+          <div class="csv-start-actions">
+            <button type="button" id="startCsvScrapingBtn" class="btn btn-emerald btn-lg btn-glow">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <span>🚀 Start Scraping This CSV (<span id="startScrapeCountText">0</span> Carriers)</span>
+            </button>
+            <button type="button" id="changeCsvFileBtn" class="btn btn-secondary">
+              <span>Choose Another File</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Scraped Results Section (Always visible or shows as data streams) -->
+        <div class="csv-live-results-section" id="csvLiveResultsSection" style="margin-top: 24px;">
+          <!-- Scrape Progress Banner -->
+          <div class="card scrape-progress-banner" id="csvScrapeProgressBanner" style="display:none;margin-bottom:20px;">
+            <div class="progress-info-row">
+              <span class="progress-title" id="csvJobTitle">Scraping Uploaded CSV in Real Time...</span>
+              <span id="csvProgressPercent" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="csvProgressBarFill" class="progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-sub-info">
+              <span>Processed: <strong id="csvProcessedCount">0</strong> / <span id="csvTotalCount">0</span></span>
+              <span>Speed: <strong id="csvSpeedText">0.0 req/s</strong></span>
+              <span>ETA: <strong id="csvEtaText">-- min</strong></span>
+            </div>
+            <div class="kpi-chips-grid" style="margin-top:14px;margin-bottom:0;">
+              <div class="kpi-chip kpi-chip-emerald">
+                <span class="kpi-chip-label">FOUND (OK)</span>
+                <span id="csvKpiOk" class="kpi-chip-val">0</span>
+              </div>
+              <div class="kpi-chip kpi-chip-slate">
+                <span class="kpi-chip-label">EMPTY / INACTIVE</span>
+                <span id="csvKpiEmpty" class="kpi-chip-val">0</span>
+              </div>
+              <div class="kpi-chip kpi-chip-rose">
+                <span class="kpi-chip-label">FAILED</span>
+                <span id="csvKpiFailed" class="kpi-chip-val">0</span>
+              </div>
+              <div class="kpi-chip kpi-chip-indigo">
+                <span class="kpi-chip-label">ELAPSED TIME</span>
+                <span id="csvKpiElapsed" class="kpi-chip-val">00:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- All Scraped Data Table Card -->
+          <div class="card table-card" style="margin-top: 20px;">
+            <div class="card-header" style="padding: 18px 24px;">
+              <div class="card-header-left">
+                <span class="card-header-icon">📊</span>
+                <div>
+                  <h3 class="card-title">Scraped Carrier Data (Live Updating Table)</h3>
+                  <p style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">All successfully scraped and parsed company data will appear here immediately as each DOT is fetched.</p>
+                </div>
+              </div>
+              <div class="card-header-actions" style="display:flex;gap:10px;align-items:center;">
+                <span class="badge badge-emerald" id="csvLiveFoundBadge">0 Carriers Scraped</span>
+                <a href="/api/export/csv" class="btn btn-emerald btn-sm" id="csvDownloadResultsBtn">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  <span>Download CSV</span>
+                </a>
+                <a href="/api/export/json" class="btn btn-secondary btn-sm">
+                  <span>JSON</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Table Filter Bar -->
+            <div style="display:flex;gap:14px;padding:12px 24px;background:rgba(10, 15, 29, 0.5);border-bottom:1px solid var(--bg-card-border);">
+              <div style="flex:1;position:relative;display:flex;align-items:center;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:14px;color:var(--text-dim);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="csvTableFilterInput" class="form-input" style="padding-left:40px;height:38px;font-size:0.84rem;" placeholder="Search scraped data by Company, DOT, City, State...">
+              </div>
+              <div style="width:180px;">
+                <select id="csvTableStateSelect" class="form-select" style="height:38px;font-size:0.84rem;">
+                  <option value="">All States</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive" style="max-height: 550px;">
+              <table class="crm-table">
+                <thead>
+                  <tr>
+                    <th>USDOT #</th>
+                    <th>Legal Company Name</th>
+                    <th>DOT Status (Top)</th>
+                    <th>MC / Docket #</th>
+                    <th>MC Status (Bottom)</th>
+                    <th>Location</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Officer</th>
+                    <th>Power Units</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="csvScrapedTableBody">
+                  <tr>
+                    <td colspan="10" class="table-empty">
+                      <div style="padding: 24px;text-align:center;">
+                        <div style="font-size:2.5rem;margin-bottom:8px;opacity:0.6;">📁</div>
+                        <h4 style="color:#fff;margin-bottom:4px;">No CSV Scraped Yet</h4>
+                        <p style="color:var(--text-muted);font-size:0.85rem;">Upload a CSV file above or click "Use Sample 10 Leads" to scrape and see live records stream in!</p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 1: LIVE INSPECTOR & REAL DATA TEST         -->
+      <!-- ============================================== -->
+      <section id="tab-inspector" class="tab-pane">
+        <div class="panel-header">
+          <div>
+            <h2>Real-Time USDOT Carrier Inspector</h2>
+            <p class="panel-desc">Test live queries against the official MOTUS database. View parsed carrier profiles and inspect exact JSON payloads.</p>
+          </div>
+          <div class="panel-header-tags">
+            <span class="badge badge-emerald">Live API Online</span>
+            <span class="badge badge-outline">2026 Registry Data</span>
+          </div>
+        </div>
+
+        <!-- Search Bar Area -->
+        <div class="inspector-search-card card">
+          <form id="inspectorForm" class="search-form">
+            <div class="search-input-wrapper">
+              <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="inspectorInput" placeholder="Enter USDOT Number or Company Name (e.g. 3000000, 1000000, Robco)..." value="3000000" autocomplete="off" required>
+              <button type="button" id="clearInspectorInputBtn" class="btn-icon-clear" title="Clear input">&times;</button>
+            </div>
+            <button type="submit" id="inspectorSearchBtn" class="btn btn-primary btn-lg">
+              <span class="btn-text">Inspect Live DOT</span>
+              <span class="spinner" style="display:none;"></span>
+            </button>
+          </form>
+
+          <!-- Quick Test Chips -->
+          <div class="quick-chips-wrapper">
+            <span class="quick-chips-label">Quick Test Chips:</span>
+            <div class="chips-list">
+              <button class="chip-btn" data-dot="3000000">DOT #3000000 (Robco Enterprises)</button>
+              <button class="chip-btn" data-dot="1000000">DOT #1000000 (James Killingsworth)</button>
+              <button class="chip-btn" data-dot="2500000">DOT #2500000</button>
+              <button class="chip-btn" data-dot="1234567">DOT #1234567</button>
+              <button class="chip-btn" data-dot="500000">DOT #500000</button>
+              <button class="chip-btn" data-dot="999999999">DOT #999999999 (Empty Check)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inspector Results Split Grid -->
+        <div class="inspector-grid">
+          <!-- Left Column: Carrier Card -->
+          <div class="inspector-col card">
+            <div class="card-header">
+              <div class="card-header-left">
+                <span class="card-header-icon">🏢</span>
+                <span class="card-title">Parsed Carrier Entity</span>
+              </div>
+              <div id="inspectorTimingBadge" class="timing-badge">
+                <span>⚡ -- ms</span>
+              </div>
+            </div>
+
+            <div id="inspectorCarrierContent" class="carrier-detail-body">
+              <div class="empty-state-placeholder">
+                <div class="empty-icon">🔍</div>
+                <h3>Ready to Inspect</h3>
+                <p>Click "Inspect Live DOT" or pick any chip above to test with real USDOT data.</p>
+              </div>
+            </div>
+
+            <div id="inspectorCarrierActions" class="carrier-card-footer" style="display:none;">
+              <button id="saveCurrentCarrierBtn" class="btn btn-emerald btn-sm">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                <span>Save to Database / CSV</span>
+              </button>
+              <a id="inspectorMapsLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <span>View on Maps</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Right Column: Raw API Payload Inspector -->
+          <div class="inspector-col card">
+            <div class="card-header">
+              <div class="card-header-left">
+                <span class="card-header-icon">{}</span>
+                <span class="card-title">API Response JSON</span>
+              </div>
+              <div class="card-header-actions">
+                <span id="inspectorHttpStatus" class="badge badge-emerald">--</span>
+                <button id="copyRawJsonBtn" class="btn btn-ghost btn-sm" title="Copy Raw JSON">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="code-viewer-container">
+              <pre id="rawJsonViewer" class="code-viewer"><code>// Raw payload will appear here after search...</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-DOT Quick Probe Section -->
+        <div class="multi-probe-card card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <span class="card-header-icon">⚡</span>
+              <span class="card-title">Multi-DOT Instant Probe (Test up to 10 numbers at once)</span>
+            </div>
+          </div>
+          <div class="multi-probe-body">
+            <div class="multi-probe-input-row">
+              <input type="text" id="multiProbeInput" class="form-input" placeholder="Enter comma-separated DOTs, e.g. 1000000, 3000000, 2500000, 500000" value="1000000, 3000000, 2500000">
+              <button id="multiProbeBtn" class="btn btn-primary">
+                <span>Probe All</span>
+              </button>
+            </div>
+            <div id="multiProbeResults" class="multi-probe-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 2: BATCH SCRAPER ENGINE                    -->
+      <!-- ============================================== -->
+      <section id="tab-scraper" class="tab-pane">
+        <div class="panel-header">
+          <div>
+            <h2>High-Speed Batch Scraper Engine</h2>
+            <p class="panel-desc">Configure concurrent workers, monitor live requests/sec, and stream real-time logs.</p>
+          </div>
+        </div>
+
+        <div class="scraper-layout-grid">
+          <!-- Left: Scraper Controls Card -->
+          <div class="scraper-controls-card card">
+            <div class="card-header">
+              <div class="card-header-left">
+                <span class="card-header-icon">⚙️</span>
+                <span class="card-title">Job Configuration</span>
+              </div>
+            </div>
+
+            <!-- Mode Switcher -->
+            <div class="mode-switcher">
+              <button id="modeRangeBtn" class="mode-tab active" type="button">Sequential Range</button>
+              <button id="modeListBtn" class="mode-tab" type="button">Custom Lead List</button>
+            </div>
+
+            <!-- Range Mode Form -->
+            <div id="rangeFormSection" class="form-section">
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="rangeStartInput">Start USDOT Number</label>
+                  <input type="number" id="rangeStartInput" class="form-input" value="1000000" min="1" step="1">
+                </div>
+                <div class="form-group">
+                  <label for="rangeCountInput">Batch Count</label>
+                  <input type="number" id="rangeCountInput" class="form-input" value="100" min="1" max="100000" step="1">
+                </div>
+              </div>
+              <div class="range-preview-pill">
+                Range Target: <strong id="rangePreviewText">1,000,000 → 1,000,099</strong> (<span id="rangePreviewTotal">100</span> DOTs)
+              </div>
+            </div>
+
+            <!-- Custom List Form (hidden by default) -->
+            <div id="listFormSection" class="form-section" style="display:none;">
+              <div class="form-group">
+                <label for="customListTextarea">Paste USDOT Numbers (one per line or comma-separated)</label>
+                <textarea id="customListTextarea" class="form-textarea" rows="4" placeholder="3000000&#10;1000000&#10;2500000&#10;1234567"></textarea>
+              </div>
+              <div class="file-drop-area" id="dropArea">
+                <span>📁 Drag & Drop CSV / TXT file here or click to browse</span>
+                <input type="file" id="leadFileInput" accept=".txt,.csv" style="display:none;">
+              </div>
+            </div>
+
+            <!-- Knobs: Concurrency & Delay -->
+            <div class="knobs-section">
+              <div class="knob-group">
+                <div class="knob-header">
+                  <label for="concurrencySlider">Worker Concurrency</label>
+                  <span id="concurrencyValueDisplay" class="knob-value">8 parallel</span>
+                </div>
+                <input type="range" id="concurrencySlider" min="1" max="32" value="8" class="range-slider">
+              </div>
+
+              <div class="knob-group">
+                <div class="knob-header">
+                  <label for="delaySlider">Request Delay Jitter</label>
+                  <span id="delayValueDisplay" class="knob-value">0 ms</span>
+                </div>
+                <input type="range" id="delaySlider" min="0" max="1500" step="50" value="0" class="range-slider">
+              </div>
+            </div>
+
+            <!-- Big Action Buttons -->
+            <div class="scraper-action-btns">
+              <button id="startScraperBtn" class="btn btn-emerald btn-lg btn-glow">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>Start Scraping</span>
+              </button>
+              <button id="pauseScraperBtn" class="btn btn-amber btn-lg" style="display:none;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                <span>Pause</span>
+              </button>
+              <button id="resumeScraperBtn" class="btn btn-emerald btn-lg" style="display:none;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>Resume</span>
+              </button>
+              <button id="stopScraperBtn" class="btn btn-danger btn-lg" style="display:none;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="4" y="4" width="16" height="16"></rect></svg>
+                <span>Stop</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Live Progress & Mission Monitor -->
+          <div class="scraper-monitor-card card">
+            <div class="card-header">
+              <div class="card-header-left">
+                <span class="card-header-icon">📊</span>
+                <span class="card-title">Live Scrape Status & Metrics</span>
+              </div>
+              <div class="card-header-actions">
+                <span id="monitorStatusPill" class="badge badge-idle">IDLE</span>
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-bar-container">
+              <div class="progress-info-row">
+                <span class="progress-title">Overall Job Progress</span>
+                <span id="progressPercentText" class="progress-percent">0%</span>
+              </div>
+              <div class="progress-track">
+                <div id="progressBarFill" class="progress-fill" style="width: 0%;"></div>
+              </div>
+              <div class="progress-sub-info">
+                <span>Processed: <strong id="progressProcessedText">0</strong> / <span id="progressTotalText">0</span></span>
+                <span>Speed: <strong id="progressSpeedText">0.0 req/s</strong></span>
+                <span>ETA: <strong id="progressEtaText">-- min</strong></span>
+              </div>
+            </div>
+
+            <!-- KPI Metric Chips Grid -->
+            <div class="kpi-chips-grid">
+              <div class="kpi-chip kpi-chip-emerald">
+                <span class="kpi-chip-label">FOUND (OK)</span>
+                <span id="kpiOkCount" class="kpi-chip-val">0</span>
+              </div>
+              <div class="kpi-chip kpi-chip-slate">
+                <span class="kpi-chip-label">EMPTY / INACTIVE</span>
+                <span id="kpiEmptyCount" class="kpi-chip-val">0</span>
+              </div>
+              <div class="kpi-chip kpi-chip-rose">
+                <span class="kpi-chip-label">FAILED / RETRIED</span>
+                <span id="kpiFailedCount" class="kpi-chip-val">0</span>
+              </div>
+              <div class="kpi-chip kpi-chip-indigo">
+                <span class="kpi-chip-label">ELAPSED TIME</span>
+                <span id="kpiElapsedText" class="kpi-chip-val">00:00</span>
+              </div>
+            </div>
+
+            <!-- Terminal Log Window -->
+            <div class="terminal-container">
+              <div class="terminal-header">
+                <div class="terminal-dots">
+                  <span class="dot-red"></span>
+                  <span class="dot-yellow"></span>
+                  <span class="dot-green"></span>
+                </div>
+                <div class="terminal-title">LIVE WORKER CONSOLE STREAM</div>
+                <div class="terminal-actions">
+                  <button id="clearLogsBtn" class="btn btn-ghost btn-xs">Clear</button>
+                  <label class="autoscroll-toggle">
+                    <input type="checkbox" id="autoscrollCheckbox" checked>
+                    <span>Auto-scroll</span>
+                  </label>
+                </div>
+              </div>
+
+              <div id="terminalBody" class="terminal-body">
+                <div class="log-entry log-entry-info">
+                  <span class="log-time">[Ready]</span>
+                  <span class="log-level">[INIT]</span>
+                  <span class="log-msg">Worker pool initialized. Click "Start Scraping" to begin.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 3: CARRIER LEADS CRM TABLE                 -->
+      <!-- ============================================== -->
+      <section id="tab-crm" class="tab-pane">
+        <div class="panel-header">
+          <div>
+            <h2>Carriers Database & Leads CRM</h2>
+            <p class="panel-desc">Explore, filter, and export all captured carrier records. Auto-synced with output CSV/JSON files.</p>
+          </div>
+          <div class="crm-header-actions">
+            <button id="refreshCrmBtn" class="btn btn-secondary btn-sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              <span>Refresh</span>
+            </button>
+            <a href="/api/export/csv" class="btn btn-emerald btn-sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>Download CSV</span>
+            </a>
+            <a href="/api/export/json" class="btn btn-secondary btn-sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+              <span>Download JSON</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Filter Row -->
+        <div class="crm-filter-bar card">
+          <div class="filter-search-wrapper">
+            <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="crmSearchInput" class="form-input" placeholder="Search by Company Name, DOT #, MC #, City, State...">
+          </div>
+          <div class="filter-dropdown-wrapper">
+            <select id="crmStateSelect" class="form-select">
+              <option value="">All States</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Carriers Table -->
+        <div class="table-card card">
+          <div class="table-responsive">
+            <table class="crm-table">
+              <thead>
+                <tr>
+                  <th>USDOT #</th>
+                  <th>Legal Entity Name</th>
+                  <th>DOT Status (Top)</th>
+                  <th>MC / Docket #</th>
+                  <th>MC Status (Bottom)</th>
+                  <th>Location</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Officer</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="crmTableBody">
+                <tr>
+                  <td colspan="10" class="table-empty">Loading carriers...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Footer -->
+          <div class="table-footer">
+            <div class="table-count-info">
+              Showing <span id="crmShowingCount">0</span> of <span id="crmTotalCount">0</span> carriers
+            </div>
+            <div class="pagination-controls">
+              <button id="crmPrevPageBtn" class="btn btn-secondary btn-sm" disabled>&larr; Prev</button>
+              <span id="crmCurrentPageText" class="page-indicator">Page 1</span>
+              <button id="crmNextPageBtn" class="btn btn-secondary btn-sm" disabled>Next &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 4: API & CONFIG STUDIO                     -->
+      <!-- ============================================== -->
+      <section id="tab-config" class="tab-pane">
+        <div class="panel-header">
+          <div>
+            <h2>API & Endpoint Configuration Studio</h2>
+            <p class="panel-desc">Customize network parameters, headers, and target FMCSA/MOTUS search endpoints at runtime.</p>
+          </div>
+          <div>
+            <button id="testConnectionBtn" class="btn btn-primary btn-sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+              <span>Test Connection & Ping</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="config-grid">
+          <div class="card config-card">
+            <div class="card-header">
+              <span class="card-title">Endpoint Configuration</span>
+              <div class="preset-dropdown">
+                <select id="configPresetSelect" class="form-select form-select-sm">
+                  <option value="motus">Preset: MOTUS Official API (Active)</option>
+                  <option value="custom">Preset: Custom Endpoint</option>
+                </select>
+              </div>
+            </div>
+
+            <form id="configForm" class="config-form">
+              <div class="form-group">
+                <label for="cfgBaseUrl">Base URL</label>
+                <input type="url" id="cfgBaseUrl" class="form-input" value="https://motus.dot.gov" required>
+              </div>
+
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="cfgPath">Search Path</label>
+                  <input type="text" id="cfgPath" class="form-input" value="/api/carriers/search" required>
+                </div>
+                <div class="form-group">
+                  <label for="cfgMethod">HTTP Method</label>
+                  <select id="cfgMethod" class="form-select">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="cfgQueryParam">Query Parameter Name</label>
+                  <input type="text" id="cfgQueryParam" class="form-input" value="query">
+                </div>
+                <div class="form-group">
+                  <label for="cfgConcurrency">Default Concurrency</label>
+                  <input type="number" id="cfgConcurrency" class="form-input" value="8" min="1" max="32">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="cfgUserAgent">User-Agent Header</label>
+                <input type="text" id="cfgUserAgent" class="form-input" value="Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0 Safari/537.36">
+              </div>
+
+              <div class="config-actions">
+                <button type="submit" class="btn btn-emerald">Save Configuration</button>
+                <button type="button" id="resetConfigBtn" class="btn btn-secondary">Reset to Defaults</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Connection Probe Results -->
+          <div class="card config-card">
+            <div class="card-header">
+              <span class="card-title">Live Connectivity Test & Diagnostics</span>
+            </div>
+            <div id="connTestResults" class="conn-test-body">
+              <div class="conn-item">
+                <span class="conn-label">Current Target:</span>
+                <span id="connTargetUrl" class="conn-val">https://motus.dot.gov/api/carriers/search</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">Probe Status:</span>
+                <span id="connProbeStatus" class="badge badge-emerald">Ready to Test</span>
+              </div>
+              <div class="conn-item">
+                <span class="conn-label">Latency:</span>
+                <span id="connProbeLatency" class="conn-val">-- ms</span>
+              </div>
+              <div class="conn-output-box">
+                <pre id="connProbeOutput">// Click "Test Connection & Ping" to run diagnostics.</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 5: FAILED & RESUMPTION MANAGER             -->
+      <!-- ============================================== -->
+      <section id="tab-failed" class="tab-pane">
+        <div class="panel-header">
+          <div>
+            <h2>Failed & Resumption Manager</h2>
+            <p class="panel-desc">Inspect skipped DOT numbers, view failed requests from rate-limits or timeouts, and retry them automatically.</p>
+          </div>
+          <div>
+            <button id="retryAllFailedBtn" class="btn btn-amber btn-sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              <span>Retry All Failed</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="failed-grid">
+          <div class="card failed-card">
+            <div class="card-header">
+              <span class="card-title">Failed DOT Numbers (out/failed.txt)</span>
+              <span id="failedListBadge" class="badge badge-amber">0 Failed</span>
+            </div>
+            <div class="failed-card-body">
+              <div id="failedListContainer" class="failed-pills-list">
+                <p class="text-muted">No failed DOT numbers recorded. All requests succeeded!</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card failed-card">
+            <div class="card-header">
+              <span class="card-title">Scrape Resume State & Data Management</span>
+            </div>
+            <div class="failed-card-body">
+              <p>The scraper maintains an automatic resume log in <code>out/done.txt</code> so you never scrape the same USDOT twice.</p>
+              <div class="state-metrics">
+                <div class="state-metric-row">
+                  <span>Already Done / Skipped:</span>
+                  <strong id="doneCountStateDisplay">0 DOTs</strong>
+                </div>
+              </div>
+              <div class="danger-zone-box">
+                <h4>Database Management</h4>
+                <p>Reset records or clear done cache if you want to start completely fresh.</p>
+                <div class="danger-actions">
+                  <button id="clearAllDataBtn" class="btn btn-danger btn-sm">Reset All Data & Files</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- CARRIER MODAL -->
+    <div id="carrierModal" class="modal-backdrop" style="display:none;">
+      <div class="modal-dialog card">
+        <div class="modal-header">
+          <h3 id="modalCarrierName">Carrier Details</h3>
+          <button id="closeModalBtn" class="modal-close-btn">&times;</button>
+        </div>
+        <div id="modalCarrierBody" class="modal-body"></div>
+        <div class="modal-footer">
+          <button id="closeModalFooterBtn" class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
